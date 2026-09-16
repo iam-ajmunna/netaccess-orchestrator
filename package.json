@@ -1,0 +1,15 @@
+{
+  "name": "netaccess-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Per-application network reliability and authorized multi-transport orchestration",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test:classifier": "node --experimental-strip-types scripts/run-classifier-matrix.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
