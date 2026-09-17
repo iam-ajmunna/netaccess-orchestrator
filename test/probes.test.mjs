@@ -190,3 +190,14 @@ test("P1 Direct Pipeline: Closed port stops before TLS and HTTP", async () => {
   const classification = classify(findings);
   assert.equal(classification.class, "tcp_refused");
 });
+
+test("P1 Direct Pipeline: parseTarget detects standard HTTP ports and diagnoseDirectPath probes active port", async () => {
+  const target8080 = parseTarget("server3.ftpbd.net:8080");
+  assert.equal(target8080.scheme, "http");
+  assert.equal(target8080.port, 8080);
+  assert.equal(target8080.href, "http://server3.ftpbd.net:8080/");
+
+  const targetBare = parseTarget("server3.ftpbd.net");
+  assert.equal(targetBare.host, "server3.ftpbd.net");
+});
+

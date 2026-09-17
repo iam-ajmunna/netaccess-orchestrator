@@ -338,7 +338,18 @@ export function parseTarget(raw: string): ParsedTarget {
   if (!trimmed) throw new Error("Empty target address provided");
   let input = trimmed;
   if (!input.includes("://")) {
-    input = `https://${input}`;
+    const portMatch = input.match(/:(\d+)(?:[/?#]|$)/);
+    if (portMatch) {
+      const p = Number(portMatch[1]);
+      const commonHttpPorts = [80, 8080, 8000, 8081, 8088, 8888, 3000, 5000];
+      if (commonHttpPorts.includes(p)) {
+        input = `http://${input}`;
+      } else {
+        input = `https://${input}`;
+      }
+    } else {
+      input = `https://${input}`;
+    }
   }
   let url: URL;
   try {

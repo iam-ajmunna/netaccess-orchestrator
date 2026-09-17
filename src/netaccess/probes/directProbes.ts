@@ -82,12 +82,40 @@ export async function diagnoseDirectPath(
   if (signal?.aborted) throw new Error("Diagnosis aborted after DNS");
 
   // Layer 3: TCP connect probe
-  const tcpResult = await probeTcp(
+  let tcpResult = await probeTcp(
     dnsResult.usableIp,
     target.port,
     options.tcpTimeoutMs,
     signal,
   );
+
+  // If initial TCP probe failed and the user did not specify an explicit port or scheme,
+  // probe common alternate web ports (e.g. 80, 8080, 8081) to detect active web services.
+  const hasExplicitPort = /:\d+/.test(target.raw);
+  const hasExplicitScheme = target.raw.includes("://");
+  if (!tcpResult.connected && !hasExplicitPort && !hasExplicitScheme && !signal?.aborted) {
+    const candidatePorts = [80, 8080, 8081, 8000];
+    for (const altPort of candidatePorts) {
+      if (signal?.aborted) break;
+      const altTcp = await probeTcp(dnsResult.usableIp, altPort, Math.min(options.tcpTimeoutMs, 1000), signal);
+      if (altTcp.connected) {
+        target.port = altPort;
+        target.scheme = "http";
+        const defaultPort = altPort === 80;
+        const hostPortStr = defaultPort ? target.host : `${target.host}:${altPort}`;
+        target.href = `http://${hostPortStr}${target.pathname}`;
+        tcpResult = {
+          ...altTcp,
+          finding: {
+            ...altTcp.finding,
+            evidence: `TCP SYN-ACK completed to ${dnsResult.usableIp}:${altPort} in ${altTcp.latencyMs}ms (Port 443 unresponsive; active service found on port ${altPort})`,
+          },
+        };
+        break;
+      }
+    }
+  }
+
   findings.push(tcpResult.finding);
 
   // If TCP connect failed, skip TLS and HTTP
@@ -105,6 +133,31 @@ export async function diagnoseDirectPath(
       options.tlsTimeoutMs,
       signal,
     );
+
+    // If TLS handshake failed, but user did not specify explicit https:// and TCP connected,
+    // test if service speaks unencrypted HTTP on this port.
+    if (!tlsResult.ok && !hasExplicitScheme && tcpResult.connected && !signal?.aborted) {
+      const httpFallbackTarget: ParsedTarget = {
+        ...target,
+        scheme: "http",
+        href: `http://${target.host}:${target.port}${target.pathname}`,
+      };
+      const httpTest = await probeHttp(httpFallbackTarget, options.httpTimeoutMs, signal);
+      if (httpTest.ok) {
+        target.scheme = "http";
+        target.href = httpFallbackTarget.href;
+        findings.push(makeFinding(
+          "tls",
+          true,
+          "healthy",
+          `Plaintext HTTP service detected on port ${target.port} (TLS not configured on endpoint)`,
+          { latencyMs: tlsResult.finding.latencyMs },
+        ));
+        findings.push(httpTest);
+        return findings;
+      }
+    }
+
     findings.push(tlsResult.finding);
 
     // If TLS failed, skip HTTP
