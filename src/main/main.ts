@@ -108,8 +108,19 @@ function registerIpcHandlers(): void {
       throw new Error("Invalid destination target parameter");
     }
     const options = (typeof opts === "object" && opts !== null) ? opts : {};
-    const res = await controller.openTarget(rawTarget.trim(), options);
-    return sanitizeOpenTargetResult(res);
+    try {
+      const res = await controller.openTarget(rawTarget.trim(), options);
+      return sanitizeOpenTargetResult(res);
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "code" in err && "message" in err) {
+        const error = new Error(String((err as any).message));
+        (error as any).code = (err as any).code;
+        (error as any).details = (err as any).details;
+        (error as any).suggestedAction = (err as any).suggestedAction;
+        throw error;
+      }
+      throw err;
+    }
   });
 
   ipcMain.handle("netaccess:cancel-session", async () => {

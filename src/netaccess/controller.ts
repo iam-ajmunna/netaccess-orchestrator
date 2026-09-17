@@ -675,6 +675,16 @@ export class ApplicationController extends EventEmitter {
         await this.cancelSession();
         throw new Error("Session was cancelled by user.");
       }
+      if (this.state !== "FAILED") {
+        const userErr: UserFacingError = (err && typeof err === "object" && "code" in err && "message" in err)
+          ? (err as UserFacingError)
+          : this.makeUserError(
+              "DESTINATION_UNREACHABLE",
+              err instanceof Error ? err.message : `Connection error to ${rawInput}`,
+              "An unexpected error occurred while establishing connection.",
+            );
+        await this.failSession(userErr);
+      }
       throw err;
     } finally {
       this.abortController = null;

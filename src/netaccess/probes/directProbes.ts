@@ -123,6 +123,24 @@ export async function diagnoseDirectPath(
   );
   findings.push(httpFinding);
 
+  // If destination TCP succeeded and TLS/HTTP answered, captive portal check failure
+  // was an external false-positive or redirect on captive.apple.com that does not block this target.
+  if (tcpResult.connected) {
+    const isHttps = target.scheme === "https" || target.port === 443;
+    const tlsOk = !isHttps || findings.some((f) => f.layer === "tls" && f.ok);
+    const httpOk = findings.some((f) => f.layer === "http" && f.ok);
+    if (tlsOk || httpOk) {
+      for (const f of findings) {
+        if (f.layer === "captive" && !f.ok) {
+          f.ok = true;
+          f.classHint = "healthy";
+          f.weight = 0.1;
+          f.evidence = "Captive check inconclusive, but destination answered directly over TCP/TLS.";
+        }
+      }
+    }
+  }
+
   return findings;
 }
 
@@ -279,8 +297,29 @@ export async function probeDns(
   const latencyMs = Math.max(1, t1 - t0);
   const findings: Finding[] = [];
 
-  const v4Ips = v4Result.ips;
-  const v6Ips = v6Result.ips;
+  const v4Ips = [...v4Result.ips];
+  const v6Ips = [...v6Result.ips];
+
+  // If C-Ares direct resolution produced no addresses, query native OS resolver (getaddrinfo via dns.lookup).
+  // On macOS, system networking uses mDNSResponder and SystemConfiguration rather than /etc/resolv.conf.
+  if (v4Ips.length === 0 && v6Ips.length === 0 && !signal?.aborted) {
+    try {
+      const lookupPromise = dns.lookup(host, { all: true });
+      const timeoutPromise = new Promise<{ address: string; family: number }[]>((_, reject) => {
+        setTimeout(() => reject(new Error("System lookup timeout")), Math.min(timeoutMs, 2000));
+      });
+      const entries = await Promise.race([lookupPromise, timeoutPromise]);
+      for (const entry of entries) {
+        if (entry.family === 4 && !v4Ips.includes(entry.address)) {
+          v4Ips.push(entry.address);
+        } else if (entry.family === 6 && !v6Ips.includes(entry.address)) {
+          v6Ips.push(entry.address);
+        }
+      }
+    } catch {
+      // System lookup also failed; will proceed to failure classification
+    }
+  }
 
   // Evaluate findings
   if (v4Ips.length > 0 || v6Ips.length > 0) {

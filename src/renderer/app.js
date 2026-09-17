@@ -179,6 +179,9 @@
 
       case "MONITORING":
       case "ACTIVE":
+        if (connectedTarget && latestTelemetry.lastTarget) {
+          connectedTarget.textContent = latestTelemetry.lastTarget;
+        }
         showView(viewConnected);
         break;
 
@@ -433,6 +436,7 @@
     const cleanTarget = target.trim();
     latestTelemetry.lastTarget = cleanTarget;
     if (connectingTarget) connectingTarget.textContent = cleanTarget;
+    if (connectedTarget) connectedTarget.textContent = cleanTarget;
 
     // Provide immediate visual feedback on click
     showView(viewConnecting);
@@ -442,10 +446,23 @@
 
     try {
       if (window.netaccess) {
-        await window.netaccess.openTarget(cleanTarget);
+        const res = await window.netaccess.openTarget(cleanTarget);
+        if (res) {
+          renderCompleted(res);
+        }
       }
     } catch (err) {
       console.error("openTarget failed:", err);
+      // Fallback only if controller onFailed event has not already populated and displayed viewFailed
+      if (viewFailed && !viewFailed.classList.contains("active")) {
+        const userErr = (err && typeof err === "object" && err.code)
+          ? err
+          : {
+              code: "DESTINATION_UNREACHABLE",
+              message: err instanceof Error ? err.message : String(err),
+            };
+        renderFailed(userErr);
+      }
     }
   }
 
