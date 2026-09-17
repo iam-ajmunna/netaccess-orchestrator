@@ -12,7 +12,7 @@
   "main": "dist/main/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json && node -e 'import(\"node:fs\").then(fs => fs.cpSync(\"src/renderer\", \"dist/renderer\", { recursive: true }))'",
+    "build": "tsc -p tsconfig.build.json && node scripts/build-preload.mjs && node -e 'import(\"node:fs\").then(fs => fs.cpSync(\"src/renderer\", \"dist/renderer\", { recursive: true }))'",
     "start": "npm run build && electron .",
     "test": "tsx --test test/**/*.test.mjs",
     "test:classifier": "node --experimental-strip-types scripts/run-classifier-matrix.mjs",

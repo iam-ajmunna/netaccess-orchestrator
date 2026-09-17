@@ -33,6 +33,12 @@ function getRendererPath(): string {
   return path.resolve(__dirname, "../../src/renderer/index.html");
 }
 
+function getPreloadPath(): string {
+  const cjsPath = path.join(__dirname, "preload.cjs");
+  if (fs.existsSync(cjsPath)) return cjsPath;
+  return path.join(__dirname, "preload.js");
+}
+
 function sanitizeTransport(transport: TransportConfig): TransportConfig {
   return {
     ...transport,
@@ -66,7 +72,7 @@ function createMainWindow(): BrowserWindow {
     backgroundColor: "#1c1c1e",
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -90,6 +96,12 @@ function createMainWindow(): BrowserWindow {
       setTimeout(() => {
         app.quit();
       }, 500);
+    }
+  });
+
+  win.webContents.on("console-message", (_, level, message) => {
+    if (level >= 2) {
+      console.warn(`[NetAccess UI] ${message}`);
     }
   });
 
