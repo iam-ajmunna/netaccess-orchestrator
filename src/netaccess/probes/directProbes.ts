@@ -43,6 +43,64 @@ const DEFAULT_OPTIONS: Required<DirectProbeOptions> = {
 };
 
 /**
+ * Check if an HTTP endpoint returns a generic default placeholder/greeting
+ * (e.g. Welcome to nginx!, Apache2 Ubuntu Default Page) rather than actual content.
+ */
+async function isDefaultWebPlaceholder(
+  ip: string,
+  port: number,
+  timeoutMs = 800,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let finished = false;
+    const finish = (result: boolean) => {
+      if (finished) return;
+      finished = true;
+      resolve(result);
+    };
+
+    if (signal?.aborted) return finish(false);
+    const abortHandler = () => finish(false);
+    signal?.addEventListener("abort", abortHandler, { once: true });
+
+    const req = http.get(
+      {
+        host: ip,
+        port,
+        path: "/",
+        timeout: timeoutMs,
+        headers: {
+          "User-Agent": "Mozilla/5.0 NetAccess/1.0",
+          Connection: "close",
+        },
+      },
+      (res) => {
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          body += chunk;
+          if (body.length > 512) req.destroy();
+        });
+        res.on("end", () => {
+          const isPlaceholder =
+            /welcome to nginx/i.test(body) ||
+            /apache2 ubuntu default/i.test(body) ||
+            /iis windows server/i.test(body);
+          finish(isPlaceholder);
+        });
+      },
+    );
+
+    req.on("error", () => finish(false));
+    req.on("timeout", () => {
+      req.destroy();
+      finish(false);
+    });
+  });
+}
+
+/**
  * Main Direct Diagnostic Pipeline
  * Returns structured findings ready for existing classify()
  */
@@ -90,20 +148,36 @@ export async function diagnoseDirectPath(
   );
 
   // If initial TCP probe failed and the user did not specify an explicit port or scheme,
-  // probe common alternate web ports (e.g. 80, 8080, 8081) to detect active web services.
+  // probe common alternate web ports (e.g. 80, 8081, 8080, 8000) to detect active web services.
   const hasExplicitPort = /:\d+/.test(target.raw);
   const hasExplicitScheme = target.raw.includes("://");
   if (!tcpResult.connected && !hasExplicitPort && !hasExplicitScheme && !signal?.aborted) {
-    const candidatePorts = [80, 8080, 8081, 8000];
+    const candidatePorts = [80, 8081, 8080, 8000, 8088];
+    let placeholderFallback: {
+      port: number;
+      tcp: typeof tcpResult;
+      href: string;
+    } | null = null;
+
     for (const altPort of candidatePorts) {
       if (signal?.aborted) break;
       const altTcp = await probeTcp(dnsResult.usableIp, altPort, Math.min(options.tcpTimeoutMs, 1000), signal);
       if (altTcp.connected) {
-        target.port = altPort;
-        target.scheme = "http";
         const defaultPort = altPort === 80;
         const hostPortStr = defaultPort ? target.host : `${target.host}:${altPort}`;
-        target.href = `http://${hostPortStr}${target.pathname}`;
+        const altHref = `http://${hostPortStr}${target.pathname}`;
+
+        // Verify whether the endpoint is merely an unconfigured web server greeting (e.g. Welcome to nginx!)
+        const isPlaceholder = await isDefaultWebPlaceholder(dnsResult.usableIp, altPort, 800, signal);
+        if (isPlaceholder && !placeholderFallback) {
+          placeholderFallback = { port: altPort, tcp: altTcp, href: altHref };
+          continue; // Check if an alternate candidate port hosts real application/directory content
+        }
+
+        // Active service with real content found
+        target.port = altPort;
+        target.scheme = "http";
+        target.href = altHref;
         tcpResult = {
           ...altTcp,
           finding: {
@@ -111,8 +185,22 @@ export async function diagnoseDirectPath(
             evidence: `TCP SYN-ACK completed to ${dnsResult.usableIp}:${altPort} in ${altTcp.latencyMs}ms (Port 443 unresponsive; active service found on port ${altPort})`,
           },
         };
+        placeholderFallback = null;
         break;
       }
+    }
+
+    if (placeholderFallback && !tcpResult.connected) {
+      target.port = placeholderFallback.port;
+      target.scheme = "http";
+      target.href = placeholderFallback.href;
+      tcpResult = {
+        ...placeholderFallback.tcp,
+        finding: {
+          ...placeholderFallback.tcp.finding,
+          evidence: `TCP SYN-ACK completed to ${dnsResult.usableIp}:${placeholderFallback.port} in ${placeholderFallback.tcp.latencyMs}ms (Port 443 unresponsive; active service found on port ${placeholderFallback.port})`,
+        },
+      };
     }
   }
 

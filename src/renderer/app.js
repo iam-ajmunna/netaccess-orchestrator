@@ -697,6 +697,7 @@
     try {
       transportsList.replaceChildren();
 
+      const transports = await window.netaccess.getTransports();
       if (!transports || transports.length === 0) {
         const emptyDiv = document.createElement("div");
         emptyDiv.className = "empty-hint";
