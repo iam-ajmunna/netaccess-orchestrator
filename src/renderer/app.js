@@ -258,12 +258,12 @@
     latestTelemetry.selectedPath = path;
     if (!path) return;
 
-    const isDirect = path.type === "DIRECT";
-    if (pathType) pathType.textContent = isDirect ? "Direct Connection" : "Alternate Path";
+    const isDirect = (path.type || "").toLowerCase() === "direct";
+    if (pathType) pathType.textContent = isDirect ? "Direct Connection" : (path.transportName || "Alternate Path");
     if (pathTransport) {
       pathTransport.textContent = isDirect
         ? "Direct Network Interface"
-        : (path.transport?.name || path.transport?.type?.toUpperCase() || "Authorized Proxy");
+        : (path.transportName || path.transport?.name || path.transport?.type?.toUpperCase() || "Authorized Proxy");
     }
     if (pathLatency) {
       const lat = path.latencyMs || (path.transport?.runtime?.ewmaLatencyMs);
@@ -310,7 +310,10 @@
   // Render Completed Session
   function renderCompleted(result) {
     latestTelemetry.lastResult = result;
-    if (connectedTarget) connectedTarget.textContent = result.target;
+    const targetDisplay = typeof result.target === "string"
+      ? result.target
+      : (result.target?.host || result.target?.raw || result.target?.href || "Connected");
+    if (connectedTarget) connectedTarget.textContent = targetDisplay;
     renderTransport(result.path);
     renderDiagnosis(result.diagnosis);
     if (result.verification) renderVerification(result.verification);
@@ -431,6 +434,12 @@
     latestTelemetry.lastTarget = cleanTarget;
     if (connectingTarget) connectingTarget.textContent = cleanTarget;
 
+    // Provide immediate visual feedback on click
+    showView(viewConnecting);
+    setStepStatus(stepChecking, "active");
+    setStepStatus(stepFinding, "pending");
+    setStepStatus(stepOpening, "pending");
+
     try {
       if (window.netaccess) {
         await window.netaccess.openTarget(cleanTarget);
@@ -444,8 +453,22 @@
   if (targetForm) {
     targetForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const val = targetInput.value.trim();
-      if (val) initiateOpen(val);
+      let val = targetInput ? targetInput.value.trim() : "";
+      if (!val) {
+        val = "example.com";
+        if (targetInput) targetInput.value = val;
+      }
+      initiateOpen(val);
+    });
+  }
+
+  if (btnOpen) {
+    btnOpen.addEventListener("click", () => {
+      let val = targetInput ? targetInput.value.trim() : "";
+      if (!val) {
+        val = "example.com";
+        if (targetInput) targetInput.value = val;
+      }
     });
   }
 
@@ -459,7 +482,14 @@
   }
 
   if (btnNewTarget) {
-    btnNewTarget.addEventListener("click", () => {
+    btnNewTarget.addEventListener("click", async () => {
+      if (window.netaccess) {
+        try {
+          await window.netaccess.closeSession();
+        } catch (e) {
+          console.warn("closeSession error:", e);
+        }
+      }
       showView(viewInitial);
       if (targetInput) {
         targetInput.value = "";

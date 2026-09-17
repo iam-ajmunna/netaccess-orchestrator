@@ -204,12 +204,16 @@ export class SessionManager {
       stdio: "ignore",
     });
 
+    const isLaunchServicesOpener = opener === "/usr/bin/open" || opener === "open";
     const pid = child.pid ?? 0;
     if (pid > 0) {
       this.supervisor.registerProcess(pid, sessionId, opener);
       child.on("exit", () => {
         this.supervisor.unregisterProcess(pid);
-        if (this.onSessionExitCallback) {
+        // /usr/bin/open is a macOS launcher CLI that terminates immediately (~15ms)
+        // after dispatching the URL to LaunchServices. Its exit must not terminate
+        // the active NetAccess session or reset the UI to IDLE.
+        if (!isLaunchServicesOpener && this.onSessionExitCallback) {
           this.onSessionExitCallback(sessionId);
         }
       });

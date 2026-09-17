@@ -432,3 +432,29 @@ test("P6.21: Electron launches on macOS, loads renderer, and fires ready-to-show
     "Electron successfully booted, loaded renderer HTML/JS, and reached ready-to-show state"
   );
 });
+
+// 22. Target Form & Open Trigger Behavior
+test("P6.22: Target input allows seamless submission without HTML5 blocking and app.js handles empty fallback", () => {
+  const html = fs.readFileSync(path.join(projectRoot, "src/renderer/index.html"), "utf-8");
+  const appJs = fs.readFileSync(path.join(projectRoot, "src/renderer/app.js"), "utf-8");
+
+  // Input must not have 'required' attribute to avoid native form validation swallowing clicks
+  assert.doesNotMatch(
+    html,
+    /<input[^>]*id="target-input"[^>]*required/i,
+    "Target input does not enforce HTML5 required attribute"
+  );
+
+  // app.js defaults empty submissions and provides immediate feedback
+  assert.match(
+    appJs,
+    /val\s*=\s*"example\.com"/,
+    "app.js defaults empty target submission to example.com"
+  );
+  assert.match(
+    appJs,
+    /showView\(viewConnecting\)/,
+    "app.js transitions to viewConnecting on initiateOpen"
+  );
+});
+

@@ -60,6 +60,11 @@ test("P3.6: Direct launch receives exact normalized target and touches no proxy 
     reason: "Direct healthy",
   };
 
+  let exitCalled = false;
+  sm.setOnSessionExit(() => {
+    exitCalled = true;
+  });
+
   const session = await sm.launchSession("sess-direct-1", target, selectedPath);
 
   assert.strictEqual(session.sessionId, "sess-direct-1");
@@ -67,6 +72,10 @@ test("P3.6: Direct launch receives exact normalized target and touches no proxy 
   assert.strictEqual(session.profileDir, undefined, "Direct session must not create an ephemeral profile");
   assert.strictEqual(spawnedCmd, "/usr/bin/open");
   assert.deepStrictEqual(spawnedArgs, ["https://example.com/app?query=test#section"]);
+
+  // Wait briefly to allow child exit handler to run
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.strictEqual(exitCalled, false, "/usr/bin/open exit must not trigger session exit callback");
 
   // Supervisor registered process
   assert.ok(session.process);
