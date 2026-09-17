@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self' data:;">
+  <title>NetAccess Orchestrator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="macos-theme">
+  <!-- Titlebar drag region -->
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-drag-region"></div>
+    <div class="titlebar-actions">
+      <button class="icon-button" id="btn-toggle-dev" title="Developer Mode (⌘D)" aria-label="Toggle Developer Mode">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+      </button>
+      <button class="icon-button" id="btn-toggle-settings" title="Settings (⌘,)" aria-label="Open Settings">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Application Container -->
+  <main class="app-viewport">
+    
+    <!-- View 1: Initial "Where do you want to go?" -->
+    <section class="view active" id="view-initial">
+      <div class="initial-card">
+        <div class="brand-badge">
+          <span class="brand-dot"></span>
+          <span class="brand-name">NetAccess</span>
+        </div>
+        <h1 class="prompt-title">Where do you want to go?</h1>
+        <p class="prompt-subtitle">NetAccess orchestrates the best authorized path to your destination.</p>
+
+        <form class="target-form" id="target-form">
+          <div class="input-wrapper">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <input 
+              type="text" 
+              id="target-input" 
+              class="target-input" 
+              placeholder="e.g. server3.ftpbd.net or https://example.com"
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              required
+              autofocus
+            />
+          </div>
+          <button type="submit" class="btn btn-primary btn-open" id="btn-open">
+            <span>Open</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </button>
+        </form>
+
+        <div class="recent-section" id="recent-section">
+          <div class="recent-label">Recent</div>
+          <div class="recent-pill-list" id="recent-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- View 2: Connecting State -->
+    <section class="view" id="view-connecting">
+      <div class="connecting-card">
+        <div class="connecting-header">
+          <span class="connecting-spinner"></span>
+          <div>
+            <div class="connecting-caption">Connecting to</div>
+            <div class="connecting-target" id="connecting-target">example.com</div>
+          </div>
+        </div>
+
+        <div class="steps-container">
+          <div class="step-item active" id="step-checking">
+            <div class="step-icon">
+              <span class="icon-indicator"></span>
+            </div>
+            <div class="step-text">Checking destination</div>
+          </div>
+          <div class="step-item pending" id="step-finding">
+            <div class="step-icon">
+              <span class="icon-indicator"></span>
+            </div>
+            <div class="step-text">Finding a working connection</div>
+          </div>
+          <div class="step-item pending" id="step-opening">
+            <div class="step-icon">
+              <span class="icon-indicator"></span>
+            </div>
+            <div class="step-text">Opening destination…</div>
+          </div>
+        </div>
+
+        <div class="connecting-actions">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-connecting">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- View 3: Connected State -->
+    <section class="view" id="view-connected">
+      <div class="connected-card">
+        <div class="connected-header">
+          <div class="connected-target-block">
+            <div class="connected-caption">Destination Active</div>
+            <h2 class="connected-target" id="connected-target">example.com</h2>
+          </div>
+          <div class="status-badge connected" id="connected-badge">
+            <span class="badge-dot"></span>
+            <span>Connected</span>
+          </div>
+        </div>
+
+        <!-- Connection Path Summary Card -->
+        <div class="summary-card" id="path-card">
+          <div class="summary-card-header">
+            <span class="summary-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14"></path>
+                <path d="m12 5 7 7-7 7"></path>
+              </svg>
+            </span>
+            <div class="summary-title-group">
+              <span class="summary-title" id="path-type">Direct Path</span>
+              <span class="summary-subtitle" id="path-transport">Direct Network</span>
+            </div>
+            <div class="metric-pill" id="path-latency">18ms</div>
+          </div>
+          <div class="summary-card-body">
+            <div class="diagnosis-row">
+              <span class="diagnosis-label">Reason:</span>
+              <span class="diagnosis-val" id="path-diagnosis-reason">HTTP 200 OK</span>
+            </div>
+            <div class="diagnosis-row">
+              <span class="diagnosis-label">Confidence:</span>
+              <span class="diagnosis-val" id="path-confidence">95%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scoped Verification Card -->
+        <div class="verification-card" id="verification-card">
+          <div class="verification-card-header">
+            <div class="verification-title-group">
+              <svg class="check-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span class="verification-title" id="verification-status-text">Path verified</span>
+            </div>
+            <span class="verification-badge" id="verification-badge">VERIFIED</span>
+          </div>
+          <p class="verification-scope-note" id="verification-scope-note">
+            NetAccess observed the managed session using the configured connection path.
+          </p>
+          <div class="verification-summary-text" id="verification-summary-text">
+            Observed 1 active socket bound to transport endpoint.
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="connected-actions">
+          <button type="button" class="btn btn-secondary" id="btn-view-details">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>View Details</span>
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-new-target">
+            <span>New Destination</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- View 4: Failed State -->
+    <section class="view" id="view-failed">
+      <div class="failed-card">
+        <div class="failed-header">
+          <div class="failed-icon-wrap">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <div class="failed-titles">
+            <div class="failed-code-pill" id="failed-code-pill">DNS_UNAVAILABLE</div>
+            <h2 class="failed-title" id="failed-title">The destination couldn't be reached</h2>
+          </div>
+        </div>
+
+        <p class="failed-message" id="failed-message">
+          NetAccess was unable to resolve or reach this destination using any available connection path.
+        </p>
+
+        <div class="suggestion-box" id="failed-suggestion-box">
+          <div class="suggestion-title">Suggested action:</div>
+          <div class="suggestion-text" id="failed-suggestion">Check the address, verify your local internet connection, or configure an alternate proxy in Settings.</div>
+        </div>
+
+        <div class="failed-actions">
+          <button type="button" class="btn btn-secondary" id="btn-failed-back">Back</button>
+          <button type="button" class="btn btn-secondary" id="btn-failed-settings">Open Settings</button>
+          <button type="button" class="btn btn-primary" id="btn-failed-retry">Try Again</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Developer Mode Drawer -->
+  <aside class="drawer" id="drawer-dev" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <h3 class="drawer-title">Developer Mode</h3>
+        <span class="drawer-badge">Technical Diagnostics</span>
+      </div>
+      <div class="drawer-header-actions">
+        <button type="button" class="btn btn-xs" id="btn-copy-dev-json" title="Copy Telemetry JSON">Copy JSON</button>
+        <button type="button" class="icon-button" id="btn-close-dev" aria-label="Close Developer Mode">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="drawer-content">
+      <!-- Direct Probes Waterfall -->
+      <section class="dev-section">
+        <h4 class="dev-section-title">Direct Probe Waterfall</h4>
+        <div class="waterfall-list" id="dev-waterfall">
+          <div class="waterfall-item" id="wf-captive">
+            <span class="wf-name">Captive Portal</span>
+            <span class="wf-status" id="wf-captive-val">--</span>
+          </div>
+          <div class="waterfall-item" id="wf-dns">
+            <span class="wf-name">DNS Resolution</span>
+            <span class="wf-status" id="wf-dns-val">--</span>
+          </div>
+          <div class="waterfall-item" id="wf-tcp">
+            <span class="wf-name">TCP Connect (80/443)</span>
+            <span class="wf-status" id="wf-tcp-val">--</span>
+          </div>
+          <div class="waterfall-item" id="wf-tls">
+            <span class="wf-name">TLS Handshake</span>
+            <span class="wf-status" id="wf-tls-val">--</span>
+          </div>
+          <div class="waterfall-item" id="wf-http">
+            <span class="wf-name">HTTP Application</span>
+            <span class="wf-status" id="wf-http-val">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Diagnosis & Confidence -->
+      <section class="dev-section">
+        <h4 class="dev-section-title">Diagnostic Engine</h4>
+        <div class="dev-props-table">
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Classification:</span>
+            <span class="dev-prop-val" id="dev-classification">--</span>
+          </div>
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Confidence:</span>
+            <span class="dev-prop-val" id="dev-confidence">--</span>
+          </div>
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Reason:</span>
+            <span class="dev-prop-val" id="dev-reason">--</span>
+          </div>
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Recommended Action:</span>
+            <span class="dev-prop-val" id="dev-recommendation">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Candidate Transports -->
+      <section class="dev-section">
+        <h4 class="dev-section-title">Candidate Transports &amp; Circuit Breakers</h4>
+        <div class="candidate-list" id="dev-candidate-list">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- Verification Evidence -->
+      <section class="dev-section">
+        <h4 class="dev-section-title">Scoped Path Verification</h4>
+        <div class="dev-props-table">
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Verification Status:</span>
+            <span class="dev-prop-val" id="dev-verify-status">UNVERIFIED</span>
+          </div>
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Observed Sockets:</span>
+            <span class="dev-prop-val" id="dev-verify-sockets">0</span>
+          </div>
+          <div class="dev-prop-row">
+            <span class="dev-prop-key">Confidence:</span>
+            <span class="dev-prop-val" id="dev-verify-confidence">--</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="modal-settings" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Settings</h3>
+        <button type="button" class="icon-button" id="btn-close-settings" aria-label="Close Settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Settings Nav Tabs -->
+      <div class="settings-tabs" role="tablist">
+        <button type="button" class="tab-btn active" data-tab="tab-general" role="tab">General</button>
+        <button type="button" class="tab-btn" data-tab="tab-connections" role="tab">Connections</button>
+        <button type="button" class="tab-btn" data-tab="tab-privacy" role="tab">Privacy</button>
+        <button type="button" class="tab-btn" data-tab="tab-advanced" role="tab">Advanced</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Tab 1: General -->
+        <div class="tab-pane active" id="tab-general" role="tabpanel">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label for="setting-open-default-browser" class="setting-label">Open in Default Browser</label>
+              <div class="setting-hint">Launch your system browser instead of an isolated session when direct access succeeds.</div>
+            </div>
+            <input type="checkbox" id="setting-open-default-browser" class="macos-switch">
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label for="setting-auto-alternate" class="setting-label">Automatically Use Alternate Paths</label>
+              <div class="setting-hint">When direct connection is restricted or fails, automatically evaluate authorized alternate transports.</div>
+            </div>
+            <input type="checkbox" id="setting-auto-alternate" class="macos-switch" checked>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label for="setting-remember-recents" class="setting-label">Remember Recent Destinations</label>
+              <div class="setting-hint">Store recently visited hostnames locally for quick access.</div>
+            </div>
+            <input type="checkbox" id="setting-remember-recents" class="macos-switch" checked>
+          </div>
+        </div>
+
+        <!-- Tab 2: Connections -->
+        <div class="tab-pane" id="tab-connections" role="tabpanel">
+          <div class="connections-header">
+            <span class="connections-caption">Configured Transports</span>
+            <button type="button" class="btn btn-xs btn-primary" id="btn-add-proxy-toggle">+ Add Proxy</button>
+          </div>
+
+          <!-- Add Proxy Form (Hidden by default) -->
+          <form class="add-proxy-form hidden" id="add-proxy-form">
+            <h4 class="form-title">Add Connection</h4>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="proxy-type">Protocol</label>
+                <select id="proxy-type" class="macos-select">
+                  <option value="http">HTTP Proxy</option>
+                  <option value="https">HTTPS CONNECT</option>
+                  <option value="socks5">SOCKS5</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="proxy-name">Name</label>
+                <input type="text" id="proxy-name" class="macos-input" placeholder="e.g. Work Proxy" required>
+              </div>
+              <div class="form-group col-span-2">
+                <label for="proxy-host">Host / IP</label>
+                <input type="text" id="proxy-host" class="macos-input" placeholder="proxy.internal.net" required>
+              </div>
+              <div class="form-group">
+                <label for="proxy-port">Port</label>
+                <input type="number" id="proxy-port" class="macos-input" placeholder="8080" min="1" max="65535" required>
+              </div>
+              <div class="form-group">
+                <label for="proxy-user">Username (optional)</label>
+                <input type="text" id="proxy-user" class="macos-input" autocomplete="off">
+              </div>
+              <div class="form-group col-span-2">
+                <label for="proxy-pass">Password (optional)</label>
+                <input type="password" id="proxy-pass" class="macos-input" autocomplete="off">
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary btn-xs" id="btn-cancel-add-proxy">Cancel</button>
+              <button type="submit" class="btn btn-primary btn-xs" id="btn-save-proxy">Save Transport</button>
+            </div>
+          </form>
+
+          <div class="transports-list" id="transports-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Tab 3: Privacy -->
+        <div class="tab-pane" id="tab-privacy" role="tabpanel">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">Clear Recent Destinations</div>
+              <div class="setting-hint">Remove all stored destination history from this device.</div>
+            </div>
+            <button type="button" class="btn btn-secondary btn-xs" id="btn-clear-recents">Clear History</button>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label for="setting-diagnostic-logging" class="setting-label">Local Diagnostic Logging</label>
+              <div class="setting-hint">Write technical probe summaries to local session log for troubleshooting. No credentials or payload traffic are logged.</div>
+            </div>
+            <input type="checkbox" id="setting-diagnostic-logging" class="macos-switch">
+          </div>
+        </div>
+
+        <!-- Tab 4: Advanced -->
+        <div class="tab-pane" id="tab-advanced" role="tabpanel">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label for="setting-dev-mode" class="setting-label">Developer Mode</label>
+              <div class="setting-hint">Expose technical probe waterfall, EWMA scoring, circuit-breaker metrics, and socket verification telemetry.</div>
+            </div>
+            <input type="checkbox" id="setting-dev-mode" class="macos-switch">
+          </div>
+
+          <div class="system-info-box" id="system-doctor-box">
+            <div class="system-info-title">System Environment (Doctor)</div>
+            <div class="system-info-body" id="system-doctor-content">Loading environment details…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

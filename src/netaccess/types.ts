@@ -131,8 +131,10 @@ export type TransportConfig = {
   tags: string[];
   trusted: boolean;
   enabled: boolean;
+  username?: string;
   secretRef?: string;
   notes?: string;
+  diagnosticOnly?: boolean;
 };
 
 export type TransportRuntime = {
@@ -224,3 +226,184 @@ export const TRANSPORT_LABEL: Record<TransportType, string> = {
   tailscale: "Tailscale",
   plugin: "Plugin transport",
 };
+
+/** High-level product session state machine */
+export type SessionState =
+  | "IDLE"
+  | "VALIDATING"
+  | "DIAGNOSING"
+  | "FINDING_PATH"
+  | "TESTING_PATHS"
+  | "CONNECTED"
+  | "OPEN"
+  | "MONITORING"
+  | "CLEANUP"
+  | "FAILED";
+
+/** Structured user-facing error codes */
+export type UserFacingErrorCode =
+  | "INVALID_TARGET"
+  | "DNS_UNAVAILABLE"
+  | "DESTINATION_UNREACHABLE"
+  | "NO_WORKING_PATH"
+  | "DESTINATION_REJECTED"
+  | "TRANSPORT_UNAVAILABLE"
+  | "CREDENTIALS_UNAVAILABLE"
+  | "PERMISSION_REQUIRED"
+  | "SESSION_FAILED"
+  | "CLEANUP_FAILED";
+
+export type UserFacingError = {
+  code: UserFacingErrorCode;
+  message: string;
+  details?: string;
+  suggestedAction?: string;
+};
+
+export type ParsedTarget = {
+  raw: string;
+  host: string;
+  port: number;
+  scheme: "http" | "https";
+  href: string;
+  pathname: string;
+};
+
+export type SelectedPath = {
+  type: "direct" | "alternate";
+  transportId: string;
+  transportName: string;
+  transportType: TransportType;
+  latencyMs?: number;
+  reason: string;
+};
+
+export type VerificationVerdict =
+  | "VERIFIED"
+  | "NOT_VERIFIED"
+  | "PATH_CONFLICT"
+  | "UNAVAILABLE"
+  | "NOT_APPLICABLE";
+
+export type VerificationConfidence = "low" | "medium" | "high";
+
+export interface VerificationEvidence {
+  sessionId: string;
+  targetHost: string;
+  targetPort: number;
+
+  selectedTransport: {
+    type: "direct" | "alternate";
+    endpoint?: string;
+  };
+
+  observations: {
+    proxyConnectionObserved: boolean;
+    directTargetConnectionObserved: boolean;
+    targetConnectionObserved: boolean;
+  };
+
+  confidence: VerificationConfidence;
+  verified: boolean;
+  limitations: string[];
+}
+
+export type PathVerificationResult = {
+  verified: boolean;
+  verdict: VerificationVerdict;
+  confidence: VerificationConfidence;
+  summary: string;
+  targetHost: string;
+  proxyEndpoint?: string;
+  directEgressDetected: boolean;
+  timestamp: number;
+  evidence: VerificationEvidence;
+  limitations: string[];
+};
+
+export type ManagedProcess = {
+  pid: number;
+  command: string;
+  args: string[];
+  startedAt: number;
+  kill: (signal?: NodeJS.Signals) => boolean;
+};
+
+export type DiscoveredBrowser = {
+  name: "Google Chrome" | "Brave Browser" | "Microsoft Edge" | "Chromium" | "Custom";
+  executablePath: string;
+  isChromiumBased: boolean;
+};
+
+export interface ResourceRegistry {
+  registerProcess(pid: number, sessionId: string, command?: string): void;
+  unregisterProcess(pid: number): void;
+  registerDirectory(dirPath: string, sessionId: string): void;
+  registerSocket?(socket: { destroy: () => void }, sessionId: string): void;
+  registerTimer?(timer: NodeJS.Timeout | number, sessionId: string): void;
+  registerCleanupCallback?(cb: () => Promise<void> | void, sessionId: string): void;
+  cleanupSession(sessionId: string): Promise<{
+    processesKilled: number[];
+    directoriesRemoved: string[];
+  }>;
+  cleanupAll(): Promise<void>;
+}
+
+export type SessionHandle = {
+  sessionId: string;
+  target: ParsedTarget;
+  path: SelectedPath;
+  state: SessionState;
+  process?: ManagedProcess;
+  profileDir?: string;
+  startedAt: number;
+  browserLaunched: boolean;
+};
+
+export type OpenTargetResult = {
+  sessionId: string;
+  target: ParsedTarget;
+  state: SessionState;
+  path: SelectedPath;
+  diagnosis: Diagnosis;
+  selection: Selection;
+  verification?: PathVerificationResult;
+  browserLaunched: boolean;
+};
+
+export type SessionSnapshot = {
+  sessionId: string;
+  target?: ParsedTarget;
+  state: SessionState;
+  statusMessage: string;
+  path?: SelectedPath;
+  diagnosis?: Diagnosis;
+  selection?: Selection;
+  error?: UserFacingError;
+  latencyMs?: number;
+  verification?: PathVerificationResult;
+  browserLaunched: boolean;
+  startedAt: number;
+  updatedAt: number;
+};
+
+export type AppSettings = {
+  openInDefaultBrowser: boolean;
+  autoLaunchOnConnect: boolean;
+  autoUseAlternate: boolean;
+  rememberRecent: boolean;
+  maxRecent: number;
+  developerMode: boolean;
+  localDiagnostics: boolean;
+};
+
+export type RecentDestination = {
+  raw: string;
+  host: string;
+  scheme: "http" | "https";
+  port: number;
+  lastAccessedAt: number;
+  success: boolean;
+  lastPathType?: "direct" | "alternate";
+};
+export type { TransportProbeResult } from "./probes/transportProber.js";

@@ -1,15 +1,34 @@
 {
   "name": "netaccess-orchestrator",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "description": "Per-application network reliability and authorized multi-transport orchestration",
+  "author": "NetAccess Team",
   "license": "MIT",
-  "type": "module",
+  "bin": {
+    "netaccess": "./bin/netaccess.mjs"
+  },
+  "main": "dist/main/main.js",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test:classifier": "node --experimental-strip-types scripts/run-classifier-matrix.mjs"
+    "build": "tsc -p tsconfig.build.json && node -e 'import(\"node:fs\").then(fs => fs.cpSync(\"src/renderer\", \"dist/renderer\", { recursive: true }))'",
+    "start": "npm run build && electron .",
+    "test": "tsx --test test/**/*.test.mjs",
+    "test:classifier": "node --experimental-strip-types scripts/run-classifier-matrix.mjs",
+    "cli": "tsx bin/netaccess.mjs",
+    "package": "npm run build && electron-builder --dir",
+    "package:dist": "npm run build && electron-builder --mac",
+    "package:verify": "node scripts/verify-package.mjs"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "electron": "^44.4.1",
+    "electron-builder": "^26.15.3",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
   }
 }

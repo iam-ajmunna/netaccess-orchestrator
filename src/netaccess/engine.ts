@@ -14,13 +14,15 @@ import {
   type Diagnosis,
   type FailureClass,
   type Finding,
+  type ParsedTarget,
   type PolicyDoc,
   type PolicyMatch,
+  type PolicyRule,
   type ProbeLayer,
   type Selection,
   type TransportConfig,
   type TransportRuntime,
-} from "./types";
+} from "./types.js";
 
 export function ewma(prev: number, sample: number, alpha = 0.28) {
   return alpha * sample + (1 - alpha) * prev;
@@ -164,7 +166,7 @@ export function selectTransport(args: {
 
   const directOk = args.diagnosis?.classification.class === "healthy";
   const mustTunnel = args.policy.rules.some(
-    (r) => r.kind === "require" && matchPolicy(r.match, { tags: args.destinationTags, host: args.host }),
+    (r: PolicyRule) => r.kind === "require" && matchPolicy(r.match, { tags: args.destinationTags, host: args.host }),
   );
 
   if (directOk && !mustTunnel) {
@@ -181,11 +183,16 @@ export function selectTransport(args: {
     };
   }
 
+  if (!directOk) {
+    pool = pool.filter((t) => t.id !== "direct");
+  }
+
   trail.push({
     step: "direct",
     detail: directOk
       ? "Direct works, but a require-tag rule forces an authorized transport."
       : "Direct path failed or was not healthy. Evaluating configured transports.",
+    dropped: directOk ? undefined : ["direct"],
   });
 
   for (const rule of args.policy.rules) {
@@ -193,7 +200,7 @@ export function selectTransport(args: {
       if (!matchPolicy(rule.match, { tags: args.destinationTags, host: args.host })) continue;
       policyHits.push(rule.id);
       const dropped = pool
-        .filter((t) => t.tags.some((tag) => rule.forbidTransportTag.includes(tag)))
+        .filter((t) => t.tags.some((tag: string) => rule.forbidTransportTag.includes(tag)))
         .map((t) => t.id);
       pool = pool.filter((t) => !dropped.includes(t.id));
       trail.push({
@@ -206,7 +213,7 @@ export function selectTransport(args: {
     if (rule.kind === "require") {
       if (!matchPolicy(rule.match, { tags: args.destinationTags, host: args.host })) continue;
       policyHits.push(rule.id);
-      const kept = pool.filter((t) => t.tags.some((tag) => rule.requireTransportTag.includes(tag)));
+      const kept = pool.filter((t) => t.tags.some((tag: string) => rule.requireTransportTag.includes(tag)));
       const dropped = pool.filter((t) => !kept.includes(t)).map((t) => t.id);
       pool = kept.length ? kept : pool;
       trail.push({
@@ -251,7 +258,7 @@ export function selectTransport(args: {
   });
 
   let candidates = scored;
-  const latencyRule = args.policy.rules.find((r) => r.kind === "prefer_latency");
+  const latencyRule = args.policy.rules.find((r: PolicyRule) => r.kind === "prefer_latency");
   if (latencyRule && latencyRule.kind === "prefer_latency") {
     policyHits.push(latencyRule.id);
     const within = candidates.filter((c) => c.rt.latencyMs <= latencyRule.withinMs);
@@ -265,7 +272,7 @@ export function selectTransport(args: {
     }
   }
 
-  const tagRule = args.policy.rules.find((r) => r.kind === "prefer_tag");
+  const tagRule = args.policy.rules.find((r: PolicyRule) => r.kind === "prefer_tag");
   if (tagRule && tagRule.kind === "prefer_tag") {
     policyHits.push(tagRule.id);
     const tagged = candidates.filter((c) => c.t.tags.includes(tagRule.tag));
@@ -279,7 +286,7 @@ export function selectTransport(args: {
     }
   }
 
-  const fallback = args.policy.rules.find((r) => r.kind === "fallback");
+  const fallback = args.policy.rules.find((r: PolicyRule) => r.kind === "fallback");
   const winner = candidates[0]?.t;
   if (!winner) {
     const fb = fallback && fallback.kind === "fallback" ? fallback.transportId : "direct";
@@ -319,20 +326,36 @@ export function redactHost(host: string) {
   return `${prefix}${masked}.${tld}`;
 }
 
-export function parseTarget(raw: string): {
-  host: string;
-  port: number;
-  scheme: "http" | "https";
-  href: string;
-} {
+/**
+ * Redacts any inline credentials (e.g., http://user:pass@host) from strings/URLs
+ */
+export function redactCredentials(text: string): string {
+  return text.replace(/:\/\/([^:@\s]+):([^@\s]+)@/g, "://***:***@");
+}
+
+export function parseTarget(raw: string): ParsedTarget {
   const trimmed = raw.trim();
-  if (!trimmed) throw new Error("Empty target");
-  const url = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+  if (!trimmed) throw new Error("Empty target address provided");
+  let input = trimmed;
+  if (!input.includes("://")) {
+    input = `https://${input}`;
+  }
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch (err) {
+    throw new Error(`Invalid target address: ${trimmed}`);
+  }
   const host = url.hostname.toLowerCase();
-  if (!host || host.length > 253) throw new Error("Invalid host");
-  const scheme = url.protocol === "http:" ? "http" : "https";
+  if (!host || host.length > 253) throw new Error(`Invalid host: ${host}`);
+  const scheme = url.protocol === "http:" ? ("http" as const) : ("https" as const);
   const port = url.port ? Number(url.port) : scheme === "http" ? 80 : 443;
-  return { host, port, scheme, href: `${scheme}://${host}:${port}${url.pathname}` };
+  const pathname = url.pathname || "/";
+  const defaultPort = scheme === "http" ? 80 : 443;
+  const hostPortStr = port === defaultPort ? host : `${host}:${port}`;
+  const href = `${scheme}://${hostPortStr}${pathname}${url.search}${url.hash}`;
+
+  return { raw: trimmed, host, port, scheme, href, pathname };
 }
 
 export function makeFinding(
@@ -397,7 +420,7 @@ export function policyToYaml(doc: PolicyDoc): string {
 }
 
 export function layerTimings(findings: Finding[]) {
-  return LAYER_ORDER.map((layer) => {
+  return LAYER_ORDER.map((layer: ProbeLayer) => {
     const items = findings.filter((f) => f.layer === layer);
     const start = items.length ? Math.min(...items.map((i) => i.startedAt)) : 0;
     const end = items.length ? Math.max(...items.map((i) => i.endedAt)) : 0;

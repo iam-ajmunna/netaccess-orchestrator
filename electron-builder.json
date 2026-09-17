@@ -1,0 +1,20 @@
+{
+  "appId": "com.netaccess.orchestrator",
+  "productName": "NetAccess",
+  "directories": {
+    "output": "dist/package"
+  },
+  "files": [
+    "dist/**/*",
+    "bin/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.utilities",
+    "target": ["dir", "dmg"],
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "build/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.inherit.plist"
+  }
+}
